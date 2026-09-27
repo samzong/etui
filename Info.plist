@@ -22,6 +22,8 @@
 	<string>26.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Launcher reads your open Chrome tabs so you can search and switch to them.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>

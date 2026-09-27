@@ -11,6 +11,8 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
     private var catalog: [Entry] = []
     private var results: [Entry] = []
     private var selected = 0
+    private var visibleStart = 0
+    private let switcher = Switcher()
     private var shown = false
     private var monitor: Any?
     private var hotkeys: [EventHotKeyRef] = []
@@ -128,6 +130,14 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
         orderFrontRegardless()
         makeKeyAndOrderFront(nil)
         content.focus(on: self, end: false)
+        reloadTargets()
+    }
+
+    private func reloadTargets() {
+        switcher.reload { [weak self] in
+            guard let self, shown else { return }
+            refresh(keeping: results.indices.contains(selected) ? results[selected].id : nil)
+        }
     }
 
     private func dismiss() {
@@ -136,20 +146,31 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
         dismissAndHide()
     }
 
-    private func refresh() {
-        results = Rank.query(content.query, apps: catalog, history: history, now: Store.now())
-        selected = 0
+    private func refresh(keeping id: String? = nil) {
+        let ranked = Rank.query(content.query, apps: catalog + switcher.entries, history: history, now: Store.now())
+        var seen = Set<String>()
+        results = ranked
+            .flatMap { $0.kind == .app ? [$0] + switcher.targets(of: $0.id) : [$0] }
+            .filter { seen.insert($0.id).inserted }
+        selected = id.flatMap { id in results.firstIndex { $0.id == id } } ?? 0
+        visibleStart = max(0, selected - Rank.limit + 1)
         render()
     }
 
     private func render() {
-        let height = content.render(entries: results, selected: selected)
+        let visible = Array(results.dropFirst(visibleStart).prefix(Rank.limit))
+        let height = content.render(entries: visible, selected: selected - visibleStart)
         content.layout(on: self, height: height, visible: shown)
     }
 
     private func moveSelection(_ delta: Int) {
         guard !results.isEmpty else { return }
         selected = (selected + delta + results.count) % results.count
+        if selected < visibleStart {
+            visibleStart = selected
+        } else if selected >= visibleStart + Rank.limit {
+            visibleStart = selected - Rank.limit + 1
+        }
         render()
     }
 
@@ -159,6 +180,17 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
         }
         guard results.indices.contains(selected) else { return }
         let entry = results[selected]
+        if entry.kind == .target {
+            Task {
+                guard await switcher.focus(entry.id) else {
+                    NSSound.beep()
+                    reloadTargets()
+                    return
+                }
+                dismiss()
+            }
+            return
+        }
         if entry.kind != .quit {
             history.record(content.query, id: entry.id)
         }
@@ -174,6 +206,8 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
             let config = NSWorkspace.OpenConfiguration()
             config.activates = true
             NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: entry.path), configuration: config)
+        case .target:
+            break
         }
     }
 
@@ -192,7 +226,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
             guard let index = content.click(on: self, event: event) else {
                 return content.passesClick(on: self, event: event)
             }
-            launch(index)
+            launch(visibleStart + index)
         default: return true
         }
         return false

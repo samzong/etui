@@ -3,6 +3,7 @@ import Foundation
 
 enum Kind {
     case app
+    case target
     case settings
     case quit
 }

@@ -74,11 +74,6 @@ enum Tile {
         }
     }
 
-    private static func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
-        var value: CFTypeRef?
-        return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
-    }
-
     private static func child(_ owner: AXUIElement, _ name: String) -> AXUIElement? {
         attribute(owner, name).map { unsafeDowncast($0, to: AXUIElement.self) }
     }
@@ -125,4 +120,9 @@ enum Tile {
         NSScreen.screens.map { ($0, $0.frame.intersection(frame)) }
             .max { $0.1.width * $0.1.height < $1.1.width * $1.1.height }?.0
     }
+}
+
+func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+    var value: CFTypeRef?
+    return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
 }
