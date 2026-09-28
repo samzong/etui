@@ -8,7 +8,7 @@ private struct ChromeTab: Decodable {
     let url: String
 }
 
-private struct OpenWindow: @unchecked Sendable {
+struct OpenWindow: @unchecked Sendable {
     let pid: pid_t
     let id: CGWindowID
     let element: AXUIElement
@@ -56,6 +56,11 @@ private let copySpaces = symbol("SLSCopySpacesForWindows", in: skyLight, as: Cop
         return owned.count > 1 ? owned.map(\.entry) : []
     }
 
+    nonisolated static func searchableWindows(_ windows: [OpenWindow]) -> [OpenWindow] {
+        let counts = Dictionary(grouping: windows, by: \.pid).mapValues(\.count)
+        return windows.filter { !$0.tabs.isEmpty || counts[$0.pid, default: 0] > 1 }
+    }
+
     func focus(_ id: String) async -> Bool {
         guard let target = targets.first(where: { $0.entry.id == id }) else { return false }
         return await target.focus()
@@ -72,7 +77,7 @@ private let copySpaces = symbol("SLSCopySpacesForWindows", in: skyLight, as: Cop
         Task {
             async let loaded = chrome == nil ? [] : Self.loadTabs()
             let found = trusted ? await Task.detached { Self.scan(pids, tabbed: combe) }.value : []
-            let windows = found.flatMap { window -> [Target] in
+            let windows = Self.searchableWindows(found).flatMap { window -> [Target] in
                 guard let app = apps[window.pid], let id = app.bundleIdentifier, let path = app.bundleURL?.path else { return [] }
                 if !window.tabs.isEmpty {
                     return window.tabs.enumerated().map { index, tab in
@@ -80,7 +85,6 @@ private let copySpaces = symbol("SLSCopySpacesForWindows", in: skyLight, as: Cop
                         return Target(entry: entry, app: id) { Self.focus(tab.element, in: window, of: app) }
                     }
                 }
-                guard window.title != app.localizedName else { return [] }
                 let entry = Entry(id: "window:\(window.id)", name: window.title, aliases: [], path: path, kind: .target)
                 return [Target(entry: entry, app: id) { Self.focus(window, of: app) }]
             }

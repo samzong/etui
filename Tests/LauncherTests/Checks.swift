@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -26,6 +27,22 @@ private func app(_ id: String, _ name: String) -> Entry {
 }
 
 @Suite struct Checks {
+    @Test func searchableWindows() {
+        let element = AXUIElementCreateApplication(getpid())
+        func window(_ pid: pid_t, _ id: CGWindowID, _ title: String, tabs: [String] = []) -> OpenWindow {
+            OpenWindow(pid: pid, id: id, element: element, title: title,
+                       tabs: tabs.map { (element, $0) })
+        }
+        let telegram = window(1, 10, "Telegram @ samzong")
+        let cursor = [window(2, 20, "launcher"), window(2, 21, "launcher")]
+        let notes = [window(3, 30, "Notes"), window(3, 31, "Notes")]
+        let combe = window(4, 40, "Combe", tabs: ["launcher"])
+        let windows = [telegram] + cursor + notes + [combe]
+        #expect(Switcher.searchableWindows(windows).map(\.id) == [20, 21, 30, 31, 40])
+        #expect(Switcher.searchableWindows([cursor[0]]).isEmpty)
+        #expect(Switcher.searchableWindows([]).isEmpty)
+    }
+
     @Test func catalogDiscovery() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }

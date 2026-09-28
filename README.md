@@ -16,7 +16,7 @@ A dependency-free macOS launcher, clipboard history, window tiler, and translato
 
 The launcher lists apps, Finder, and System Settings panes. Search matches exact, prefix, and word-prefix, then ranks by usage; launching learns the typed query as an alias. List bundle identifiers in `hidden.json` to hide entries.
 
-Open windows of running apps, on every Space, are searchable by title and listed below their app's row; selecting one switches to that window. Open Google Chrome tabs are searchable by title and site and listed below Chrome's row in place of its windows; selecting one switches to that tab, and macOS asks once for permission to control Chrome. Combe tabs are listed the same way in place of its windows. Window discovery uses private macOS APIs and may need updates after macOS changes.
+When a running app has multiple windows, on every Space, they are searchable by title and listed below the app's row; selecting one switches to that window. Open Google Chrome tabs are searchable by title and site and listed below Chrome's row in place of its windows; selecting one switches to that tab, and macOS asks once for permission to control Chrome. Combe tabs are listed the same way in place of its windows. Window discovery uses private macOS APIs and may need updates after macOS changes.
 
 The clipboard panel keeps text and images for 48 hours, skips concealed clips, and pastes with Return or ⌘1–⌘9.
 
