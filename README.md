@@ -40,6 +40,6 @@ Translation uses any OpenAI-compatible endpoint configured in `translate.json`:
 
 Only `key` is required; `base` and `model` default to DeepSeek. `extra` is merged into the request body, and a style's `model` and `extra` override the top-level ones.
 
-Pinyin (拼音 on a Chinese system) is a Chinese input method built on [librime](https://github.com/rime/librime) and [rime-ice](https://github.com/iDvel/rime-ice). It learns from your selections and uses English punctuation. Run `make install-ime`, then add Pinyin under System Settings > Keyboard > Input Sources > + > Chinese, Simplified. Switch input sources to type English. Control-Delete removes a learned word; `make uninstall-ime` removes Pinyin.
+Pinyin (拼音 on a Chinese system) is a Chinese input method built on [librime](https://github.com/rime/librime) and [rime-ice](https://github.com/iDvel/rime-ice). It learns from your selections and uses English punctuation. Run `make install-ime`, then add Pinyin under System Settings > Keyboard > Input Sources > + > Chinese, Simplified. Press Shift to switch between Chinese and English in every app; 中 or 英 flashes at the cursor. Control-Delete removes a learned word; `make uninstall-ime` removes Pinyin.
 
 Data lives in `~/Library/Application Support/Launcher`: `aliases.json`, `usage.json`, `hidden.json`, `translate.json`, `clipboard/`, and `rime/`, where the input method keeps learned words.

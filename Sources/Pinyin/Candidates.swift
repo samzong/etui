@@ -7,6 +7,7 @@ final class Candidates {
     private let panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
     private let label = NSTextField(labelWithString: "")
     private let inset = NSSize(width: 12, height: 7)
+    private var generation = 0
 
     private init() {
         panel.level = NSWindow.Level(Int(CGShieldingWindowLevel()))
@@ -40,6 +41,22 @@ final class Candidates {
                 line.append(NSAttributedString(string: arrow, attributes: [.font: small, .foregroundColor: enabled ? NSColor.secondaryLabelColor : NSColor.quaternaryLabelColor]))
             }
         }
+        present(line, at: caret)
+    }
+
+    func flash(_ text: String, at caret: NSRect) {
+        present(NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 16), .foregroundColor: NSColor.labelColor]), at: caret)
+        let current = generation
+        Task {
+            try? await Task.sleep(for: .milliseconds(1500))
+            if generation == current {
+                hide()
+            }
+        }
+    }
+
+    private func present(_ line: NSAttributedString, at caret: NSRect) {
+        generation += 1
         label.attributedStringValue = line
         label.frame = NSRect(origin: NSPoint(x: inset.width, y: inset.height), size: label.fittingSize)
 

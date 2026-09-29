@@ -4,6 +4,13 @@ import Carbon
 import InputMethodKit
 
 private let noReplacement = NSRange(location: NSNotFound, length: 0)
+private let modifiers: [Int: (code: Int32, flag: NSEvent.ModifierFlags)] = [
+    kVK_Shift: (0xFFE1, .shift), kVK_RightShift: (0xFFE2, .shift),
+    kVK_Control: (0xFFE3, .control), kVK_RightControl: (0xFFE4, .control),
+    kVK_Option: (0xFFE9, .option), kVK_RightOption: (0xFFEA, .option),
+    kVK_Command: (0xFFEB, .command), kVK_RightCommand: (0xFFEC, .command),
+]
+nonisolated(unsafe) private var english = false
 
 func keysym(_ event: NSEvent) -> Int32? {
     switch Int(event.keyCode) {
@@ -28,8 +35,21 @@ func keysym(_ event: NSEvent) -> Int32? {
 }
 
 func mask(_ flags: NSEvent.ModifierFlags) -> Int32 {
-    [(NSEvent.ModifierFlags.shift, 1 << 0), (.capsLock, 1 << 1), (.control, 1 << 2), (.option, 1 << 3)]
+    [(NSEvent.ModifierFlags.shift, 1 << 0), (.capsLock, 1 << 1), (.control, 1 << 2), (.option, 1 << 3), (.command, 1 << 26)]
         .reduce(0) { flags.contains($1.0) ? $0 | $1.1 : $0 }
+}
+
+func key(_ event: NSEvent) -> (code: Int32, mask: Int32)? {
+    let flags = event.modifierFlags
+    switch event.type {
+    case .flagsChanged:
+        guard let modifier = modifiers[Int(event.keyCode)] else { return nil }
+        return (modifier.code, flags.contains(modifier.flag) ? mask(flags) : mask(flags) | 1 << 30)
+    case .keyDown where !flags.contains(.command):
+        return keysym(event).map { ($0, mask(flags)) }
+    default:
+        return nil
+    }
 }
 
 @objc(PinyinController)
@@ -41,16 +61,26 @@ final class Controller: IMKInputController {
         _ = rime.destroy_session(session)
     }
 
+    override func recognizedEvents(_: Any!) -> Int {
+        Int(NSEvent.EventTypeMask([.keyDown, .flagsChanged]).rawValue)
+    }
+
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
-        guard let event, event.type == .keyDown, !event.modifierFlags.contains(.command),
-              let client = sender as? IMKTextInput, let key = keysym(event)
-        else { return false }
+        guard let event, let client = sender as? IMKTextInput, let key = key(event) else { return false }
         if !rime.find_session(session) {
             session = rime.create_session()
             rime.set_option(session, "_horizontal", true)
         }
-        let handled = rime.process_key(session, key, mask(event.modifierFlags))
+        if rime.get_option(session, "ascii_mode") != english {
+            rime.set_option(session, "ascii_mode", english)
+        }
+        let handled = rime.process_key(session, key.code, key.mask)
         update(client)
+        if rime.get_option(session, "ascii_mode") != english {
+            english.toggle()
+            let caret = caret(client)
+            MainActor.assumeIsolated { Candidates.shared.flash(english ? "英" : "中", at: caret) }
+        }
         return handled
     }
 
@@ -78,6 +108,12 @@ final class Controller: IMKInputController {
     private func insert(_ text: String, into client: IMKTextInput) {
         client.insertText(text, replacementRange: noReplacement)
         marked = ""
+    }
+
+    private func caret(_ client: IMKTextInput) -> NSRect {
+        var caret = NSRect.zero
+        client.attributes(forCharacterIndex: 0, lineHeightRectangle: &caret)
+        return caret
     }
 
     private func update(_ client: IMKTextInput) {
@@ -109,8 +145,7 @@ final class Controller: IMKInputController {
                     comment: candidate.comment.map { String(cString: $0) } ?? "")
         }
         guard !candidates.isEmpty else { return hidePalettes() }
-        var caret = NSRect.zero
-        client.attributes(forCharacterIndex: 0, lineHeightRectangle: &caret)
+        let caret = caret(client)
         let highlighted = Int(menu.highlighted_candidate_index)
         let first = menu.page_no == 0, last = menu.is_last_page
         MainActor.assumeIsolated {
