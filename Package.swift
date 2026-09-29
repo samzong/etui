@@ -11,6 +11,8 @@ let package = Package(
                 .unsafeFlags(["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker", "Info.plist"]),
             ]
         ),
+        .systemLibrary(name: "CRime"),
+        .executableTarget(name: "Pinyin", dependencies: ["CRime"]),
         .testTarget(name: "LauncherTests", dependencies: ["Launcher"]),
     ]
 )

@@ -2,7 +2,7 @@
 
 <img src="Resources/logo.svg" alt="Launcher" width="64" height="64">
 
-A dependency-free macOS launcher, clipboard history, window tiler, translator, and screenshot tool built with Swift and AppKit. Requires macOS 26 or later.
+A macOS launcher, clipboard history, window tiler, translator, and screenshot tool built with Swift and AppKit. Requires macOS 26 or later.
 
 `make install` builds and opens `/Applications/Launcher.app` and registers it as a login item. `make uninstall` removes it, `make dmg` writes a disk image to `.local/dist`, and `make check` runs the tests. Pasting, translating selections, tiling, and window search need Accessibility access.
 
@@ -40,4 +40,6 @@ Translation uses any OpenAI-compatible endpoint configured in `translate.json`:
 
 Only `key` is required; `base` and `model` default to DeepSeek. `extra` is merged into the request body, and a style's `model` and `extra` override the top-level ones.
 
-Data lives in `~/Library/Application Support/Launcher`: `aliases.json`, `usage.json`, `hidden.json`, `translate.json`, and `clipboard/`.
+Pinyin (拼音 on a Chinese system) is a Chinese input method built on [librime](https://github.com/rime/librime) and [rime-ice](https://github.com/iDvel/rime-ice). It learns from your selections and uses English punctuation. Run `make install-ime`, then add Pinyin under System Settings > Keyboard > Input Sources > + > Chinese, Simplified. Switch input sources to type English. Control-Delete removes a learned word; `make uninstall-ime` removes Pinyin.
+
+Data lives in `~/Library/Application Support/Launcher`: `aliases.json`, `usage.json`, `hidden.json`, `translate.json`, `clipboard/`, and `rime/`, where the input method keeps learned words.

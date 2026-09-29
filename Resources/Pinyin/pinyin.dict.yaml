@@ -1,0 +1,9 @@
+---
+name: pinyin
+version: "1"
+import_tables:
+  - cn_dicts/8105
+  - cn_dicts/base
+  - cn_dicts/ext
+  - cn_dicts/others
+...

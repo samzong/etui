@@ -1,0 +1,4 @@
+module CRime [system] {
+    header "shim.h"
+    export *
+}
