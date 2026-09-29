@@ -119,7 +119,7 @@ final class History {
             persist(Self.aliasFile, aliasMap as NSDictionary)
         }
         recordAt(id, now: Store.now())
-        persist(Self.usageFile, usageObject())
+        persist(Self.usageFile, ["apps": usageMap.mapValues { ["count": $0.count, "last_unix": $0.lastUnix] }] as NSDictionary)
     }
 
     @discardableResult
@@ -153,9 +153,5 @@ final class History {
                                                      options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         else { return }
         Store.write(dataDir, name, data)
-    }
-
-    private func usageObject() -> NSDictionary {
-        ["apps": usageMap.mapValues { ["count": $0.count, "last_unix": $0.lastUnix] }] as NSDictionary
     }
 }

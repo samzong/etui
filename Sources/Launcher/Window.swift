@@ -61,17 +61,13 @@ enum Tile {
 
     static func granted() -> Bool {
         guard AXIsProcessTrusted() else {
-            requestAccess()
+            AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": kCFBooleanTrue as Any] as CFDictionary)
+            if let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility") {
+                NSWorkspace.shared.open(url)
+            }
             return false
         }
         return true
-    }
-
-    static func requestAccess() {
-        AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": kCFBooleanTrue as Any] as CFDictionary)
-        if let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
     }
 
     private static func child(_ owner: AXUIElement, _ name: String) -> AXUIElement? {

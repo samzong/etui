@@ -357,3 +357,131 @@ private func app(_ id: String, _ name: String) -> Entry {
         #expect(Tile.relocated(moved, from: right, to: left) == window)
     }
 }
+
+struct ScreenshotChecks {
+    private func pattern(height: Int, period: Int? = nil, unique: Bool = false) throws -> CGImage {
+        let width = 256
+        var pixels = [UInt8](repeating: 255, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                var value = UInt64((y % (period ?? height)) * 65537 + x * 257 + 1)
+                value = (value ^ (value >> 16)) &* 0x45d9f3b
+                value = (value ^ (value >> 16)) &* 0x45d9f3b
+                let shade = unique && (100..<108).contains(x) ? UInt8(y / 4) : UInt8(truncatingIfNeeded: value ^ (value >> 16))
+                let index = (y * width + x) * 4
+                pixels.replaceSubrange(index..<index + 3, with: repeatElement(shade, count: 3))
+            }
+        }
+        let provider = try #require(CGDataProvider(data: Data(pixels) as CFData))
+        return try #require(CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+                                   bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                   bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                                   provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent))
+    }
+
+    private func slice(_ image: CGImage, _ y: Int, _ height: Int = 300) throws -> CGImage {
+        try #require(image.cropping(to: CGRect(x: 0, y: y, width: image.width, height: height)))
+    }
+
+    private func mouse(_ type: NSEvent.EventType, _ x: CGFloat, _ y: CGFloat) throws -> NSEvent {
+        try #require(NSEvent.mouseEvent(with: type, location: NSPoint(x: x, y: y), modifierFlags: [], timestamp: 0,
+                                        windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+    }
+
+    @Test func scrollingCapturePreservesPixelsAndRejectsGaps() throws {
+        let original = try pattern(height: 1000)
+        var shot = try #require(ScrollShot(slice(original, 0)))
+        for (y, height) in [(0, 300), (130, 430), (280, 580)] {
+            #expect(shot.append(try slice(original, y)) == nil)
+            #expect(shot.height == height)
+        }
+        #expect(shot.append(try slice(original, 0)) != nil)
+        #expect(shot.append(try slice(original, 700)) != nil)
+        #expect(shot.height == 580)
+        #expect(ScrollFrame(try #require(shot.image()))?.rows == ScrollFrame(try slice(original, 0, 580))?.rows)
+    }
+
+    @Test(arguments: [(false, 30, 300), (true, 130, 430)])
+    func scrollingCaptureRejectsOnlyAmbiguousRepetition(unique: Bool, offset: Int, height: Int) throws {
+        let original = try pattern(height: 700, period: 40, unique: unique)
+        var shot = try #require(ScrollShot(slice(original, 0)))
+        #expect((shot.append(try slice(original, offset)) == nil) == unique)
+        #expect(shot.height == height)
+    }
+
+    @Test @MainActor func scrollingCaptureMatchesRenderedText() throws {
+        for (width, height, offset, font, spacing) in [(700, 600, 210, 18, 30), (1480, 1400, 388, 36, 84)] {
+            let context = try #require(CGContext(data: nil, width: width, height: 3600, bitsPerComponent: 8,
+                                                 bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.setFillColor(NSColor.black.cgColor)
+            context.fill(CGRect(x: 0, y: 0, width: width, height: 3600))
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.monospacedSystemFont(ofSize: CGFloat(font), weight: .regular), .foregroundColor: NSColor.white,
+            ]
+            for i in 0..<80 {
+                let y = 3600 - (i + 1) * spacing
+                ("Line \(i): Native AppKit content / \(i * 7919)" as NSString).draw(at: NSPoint(x: 0, y: y), withAttributes: attributes)
+                if spacing == 84 {
+                    ("Every original line must appear exactly once." as NSString)
+                        .draw(at: NSPoint(x: 0, y: y - spacing / 2), withAttributes: attributes)
+                }
+            }
+            NSGraphicsContext.restoreGraphicsState()
+            let original = try #require(context.makeImage())
+            var shot = try #require(ScrollShot(slice(original, offset, height)))
+            #expect(shot.append(try slice(original, offset * 2, height)) == nil)
+            #expect(shot.height == height + offset)
+        }
+    }
+
+    @Test @MainActor func screenshotHighlightKeepsNonzeroAlpha() throws {
+        let view = ShotSelection(frame: NSRect(x: 0, y: 0, width: 320, height: 240))
+        view.mode = .window
+        view.windows = [view.bounds]
+        let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 320, pixelsHigh: 240,
+                                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+        view.draw(view.bounds)
+        #expect(try #require(bitmap.colorAt(x: 160, y: 120)).alphaComponent > 0.35)
+        view.mouseMoved(with: try mouse(.mouseMoved, 160, 120))
+        view.draw(view.bounds)
+        let alpha = try #require(bitmap.colorAt(x: 160, y: 120)).alphaComponent
+        #expect(view.area == view.bounds)
+        #expect(alpha > 0 && alpha < 0.05)
+    }
+
+    @Test @MainActor func screenshotSelectionMovesResizesAndClearsWindowIdentity() throws {
+        let view = ShotSelection(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        view.mode = .window
+        view.windows = [NSRect(x: 100, y: 100, width: 400, height: 300)]
+        var index: Int?
+        view.selected = { _, window in index = window }
+        func drag(_ from: (CGFloat, CGFloat), _ to: (CGFloat, CGFloat)) throws {
+            view.mouseDown(with: try mouse(.leftMouseDown, from.0, from.1))
+            if from != to { view.mouseDragged(with: try mouse(.leftMouseDragged, to.0, to.1)) }
+            view.mouseUp(with: try mouse(.leftMouseUp, to.0, to.1))
+        }
+        try drag((200, 200), (200, 200))
+        #expect(index == 0)
+        #expect(view.area == view.windows[0])
+        try drag((300, 250), (900, 700))
+        #expect(index == nil)
+        #expect(view.area == NSRect(x: 400, y: 300, width: 400, height: 300))
+        try drag((400, 300), (500, 400))
+        #expect(view.area == NSRect(x: 500, y: 400, width: 300, height: 200))
+        view.clear()
+        #expect(view.area.isEmpty)
+        view.mode = .area
+        try drag((200, 200), (200, 200))
+        #expect(view.area.isEmpty)
+        try drag((200, 200), (500, 400))
+        #expect(view.area == NSRect(x: 200, y: 200, width: 300, height: 200))
+        #expect(view.windowIndex == nil)
+    }
+}

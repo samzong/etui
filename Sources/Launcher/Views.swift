@@ -30,6 +30,67 @@ final class GlassPanel: NSGlassEffectView {
     }
 }
 
+final class Tap: NSButton {
+    private let run: () -> Void
+    private let flat: Bool
+    private var hovered = false
+
+    init(symbol: String? = nil, title: String = "", flat: Bool = false, run: @escaping () -> Void) {
+        self.run = run
+        self.flat = flat
+        super.init(frame: .zero)
+        self.title = title
+        image = symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }
+        isBordered = symbol != nil && !flat
+        bezelStyle = .regularSquare
+        showsBorderOnlyWhileMouseInside = true
+        imageScaling = .scaleNone
+        alignment = flat ? .center : .left
+        if flat {
+            imagePosition = .imageOnly
+            symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+        }
+        font = .systemFont(ofSize: 12, weight: .medium)
+        contentTintColor = .secondaryLabelColor
+        target = self
+        action = #selector(fire)
+    }
+
+    required init?(coder _: NSCoder) {
+        nil
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        guard flat else { return }
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect], owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        hovered = true
+        needsDisplay = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        hovered = false
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if flat, isEnabled, state == .on || hovered || isHighlighted {
+            let color: NSColor = state == .on ? .controlAccentColor : .labelColor
+            color.withAlphaComponent(isHighlighted ? 0.22 : state == .on ? 0.16 : 0.08).setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 8, yRadius: 8).fill()
+        }
+        super.draw(dirtyRect)
+    }
+
+    @objc private func fire() {
+        run()
+    }
+}
+
 extension NSPanel {
     func configureFloatingPanel() {
         isReleasedWhenClosed = false

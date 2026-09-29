@@ -71,34 +71,6 @@ private func wellBox(dark: CGFloat, light: CGFloat) -> NSBox {
     return box
 }
 
-private final class Tap: NSButton {
-    private let run: () -> Void
-
-    init(symbol: String? = nil, title: String = "", run: @escaping () -> Void) {
-        self.run = run
-        super.init(frame: .zero)
-        self.title = title
-        image = symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }
-        isBordered = symbol != nil
-        bezelStyle = .regularSquare
-        showsBorderOnlyWhileMouseInside = true
-        imageScaling = .scaleNone
-        alignment = .left
-        font = .systemFont(ofSize: 12, weight: .medium)
-        contentTintColor = .secondaryLabelColor
-        target = self
-        action = #selector(fire)
-    }
-
-    required init?(coder _: NSCoder) {
-        nil
-    }
-
-    @objc private func fire() {
-        run()
-    }
-}
-
 @MainActor
 private final class TextWell {
     let scroll = NSScrollView()
@@ -124,15 +96,10 @@ private final class TextWell {
         view.insertionPointColor = .controlAccentColor
     }
 
-    var string: String {
-        get { view.string }
-        set { view.string = newValue }
-    }
-
     func height(_ width: CGFloat) -> CGFloat {
         guard let font = view.font else { return 0 }
-        guard !string.isEmpty else { return font.ascender - font.descender }
-        return ceil(NSAttributedString(string: string, attributes: [.font: font])
+        guard !view.string.isEmpty else { return font.ascender - font.descender }
+        return ceil(NSAttributedString(string: view.string, attributes: [.font: font])
             .boundingRect(with: NSSize(width: width, height: .greatestFiniteMagnitude),
                           options: [.usesLineFragmentOrigin, .usesFontLeading]).height)
     }
@@ -185,7 +152,7 @@ private final class TransBlock {
         insert.isHidden = !open || !insertable
         guard open else { return }
         let shown = display(value)
-        well.string = shown.text
+        well.view.string = shown.text
         well.view.textColor = shown.color
         copy.isEnabled = shown.ready
         insert.isEnabled = shown.ready
@@ -328,7 +295,7 @@ final class TransPanel: NSPanel, NSWindowDelegate, NSTextViewDelegate {
             self?.act(index, tap)
         }
         opened = trim(text).isEmpty ? [] : [0]
-        content.source.string = text
+        content.source.view.string = text
         translator.retarget(text)
         NSApp.activate(ignoringOtherApps: true)
         makeKeyAndOrderFront(nil)
@@ -366,7 +333,7 @@ final class TransPanel: NSPanel, NSWindowDelegate, NSTextViewDelegate {
     }
 
     private func translate() {
-        translator.retarget(content.source.string)
+        translator.retarget(content.source.view.string)
         for index in opened.sorted() {
             translator.start(index) { [weak self] in self?.draw() }
         }
@@ -389,30 +356,22 @@ final class TransPanel: NSPanel, NSWindowDelegate, NSTextViewDelegate {
     private func act(_ index: Int, _ tap: BlockTap) {
         switch tap {
         case .fold:
-            fold(index)
+            guard opened.remove(index) == nil else {
+                translator.retire(index)
+                return draw()
+            }
+            opened.insert(index)
+            translate()
         case .copy:
             guard case .done(let text)? = translator.value(index) else { return }
             clipboard.place(text)
         case .insert:
-            insert(index)
+            guard case .done(let text)? = translator.value(index) else { return }
+            dismiss()
+            guard Tile.granted() else { return }
+            clipboard.suspend()
+            clipboard.paste(clipboard.place(text), into: caller)
         }
-    }
-
-    private func fold(_ index: Int) {
-        guard opened.remove(index) == nil else {
-            translator.retire(index)
-            return draw()
-        }
-        opened.insert(index)
-        translate()
-    }
-
-    private func insert(_ index: Int) {
-        guard case .done(let text)? = translator.value(index) else { return }
-        dismiss()
-        guard Tile.granted() else { return }
-        clipboard.suspend()
-        clipboard.paste(clipboard.place(text), into: caller)
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -425,7 +384,7 @@ final class TransPanel: NSPanel, NSWindowDelegate, NSTextViewDelegate {
     }
 
     func textDidChange(_: Notification) {
-        let text = content.source.string
+        let text = content.source.view.string
         translator.retarget(text)
         if !trim(text).isEmpty, opened.isEmpty {
             opened = [0]

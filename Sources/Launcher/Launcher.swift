@@ -8,6 +8,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
     private let clipboard = Clipboard.load()
     private lazy var clips = ClipPanel(clipboard: clipboard)
     private lazy var translate = TransPanel(clipboard: clipboard)
+    private lazy var screenshot = Screenshot(clipboard: clipboard)
     private var catalog: [Entry] = []
     private var results: [Entry] = []
     private var selected = 0
@@ -27,6 +28,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
         (kVK_ANSI_RightBracket, shiftKey | optionKey, "Shift+Option+RightBracket", { _ in Tile.shift(.right) }),
         (kVK_ANSI_D, optionKey, "Option+D", { $0.translate.fromSelection() }),
         (kVK_ANSI_A, optionKey, "Option+A", { $0.translate.fromInput() }),
+        (kVK_ANSI_A, controlKey | cmdKey, "Control+Command+A", { $0.screenshot.start() }),
     ]
 
     override var canBecomeKey: Bool {

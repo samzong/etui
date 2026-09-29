@@ -181,7 +181,15 @@ final class Clipboard {
         guard Tile.granted() else { return done("") }
         suspend()
         let board = NSPasteboard.general
-        let saved = (board.pasteboardItems ?? []).map(Self.duplicate)
+        let saved = (board.pasteboardItems ?? []).map { item in
+            let copy = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    copy.setData(data, forType: type)
+                }
+            }
+            return copy
+        }
         let before = board.changeCount
         Self.synthesize(Self.copyKey)
         awaitCopy(before: before, saved: saved, left: Self.copyTries, done: done)
@@ -206,16 +214,6 @@ final class Clipboard {
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(20)) { [self] in
             awaitCopy(before: before, saved: saved, left: left - 1, done: done)
         }
-    }
-
-    private static func duplicate(_ item: NSPasteboardItem) -> NSPasteboardItem {
-        let copy = NSPasteboardItem()
-        for type in item.types {
-            if let data = item.data(forType: type) {
-                copy.setData(data, forType: type)
-            }
-        }
-        return copy
     }
 
     private static func synthesize(_ key: CGKeyCode) {
@@ -264,16 +262,12 @@ final class Clipboard {
         if let text = board.string(forType: .string), !trim(text).isEmpty {
             return (.text, Data(text.utf8))
         }
-        guard let png = png(board) else { return nil }
-        return (.image, png)
-    }
-
-    private static func png(_ board: NSPasteboard) -> Data? {
-        if let data = board.data(forType: .png) {
-            return data
+        if let png = board.data(forType: .png) {
+            return (.image, png)
         }
-        guard let tiff = board.data(forType: .tiff), let rep = NSBitmapImageRep(data: tiff) else { return nil }
-        return rep.representation(using: .png, properties: [:])
+        guard let tiff = board.data(forType: .tiff), let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return nil }
+        return (.image, png)
     }
 
     private func blob(_ clip: Clip) -> URL {
