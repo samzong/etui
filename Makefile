@@ -1,8 +1,8 @@
 DIST := .local/dist
-APP := $(DIST)/Launcher.app
+APP := $(DIST)/Etui.app
 VERSION := $(shell /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Info.plist)
-DMG := $(DIST)/Launcher-$(VERSION).dmg
-TARGET := /Applications/Launcher.app
+DMG := $(DIST)/Etui-$(VERSION).dmg
+TARGET := /Applications/Etui.app
 TESTING_MACROS := $(shell dirname $(shell xcrun --find swift))/../lib/swift/host/plugins/testing/libTestingMacros.dylib
 IDENTITY = $(shell security find-identity -v -p codesigning 2>/dev/null | awk -F '"' '/Apple Development: / { print $$2; exit }')
 
@@ -27,9 +27,9 @@ app: build
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources"
 	cp Info.plist "$(APP)/Contents/Info.plist"
 	cp Resources/AppIcon.icns "$(APP)/Contents/Resources/AppIcon.icns"
-	cp .build/release/Launcher "$(APP)/Contents/MacOS/Launcher"
+	cp .build/release/Etui "$(APP)/Contents/MacOS/Etui"
 	@identity="$(IDENTITY)"; \
-	echo "Launcher: signing as $${identity:-adhoc, accessibility grant resets on every install}"; \
+	echo "Etui: signing as $${identity:-adhoc, accessibility grant resets on every install}"; \
 	codesign --force --sign "$${identity:--}" "$(APP)"
 
 dmg: app
@@ -37,16 +37,16 @@ dmg: app
 	mkdir -p "$(DIST)/stage"
 	cp -R "$(APP)" "$(DIST)/stage/"
 	ln -s /Applications "$(DIST)/stage/Applications"
-	diskutil image create from --format UDZO --volumeName Launcher "$(DIST)/stage" "$(DMG)"
+	diskutil image create from --format UDZO --volumeName Etui "$(DIST)/stage" "$(DMG)"
 
 install: app
-	-pkill -f "$(TARGET)/Contents/MacOS/Launcher"
+	-pkill -f "$(TARGET)/Contents/MacOS/Etui"
 	rm -rf "$(TARGET)"
 	cp -R "$(APP)" "$(TARGET)"
 	open "$(TARGET)"
 
 uninstall:
-	-pkill -f "$(TARGET)/Contents/MacOS/Launcher"
+	-pkill -f "$(TARGET)/Contents/MacOS/Etui"
 	rm -rf "$(TARGET)"
 
 $(RIME)/dist/lib/librime.1.dylib:

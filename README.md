@@ -1,10 +1,10 @@
-# Launcher
+# Etui
 
-<img src="Resources/logo.svg" alt="Launcher" width="64" height="64">
+<img src="Resources/logo.svg" alt="Etui" width="64" height="64">
 
 A macOS launcher, clipboard history, window tiler, translator, and screenshot tool built with Swift and AppKit. Requires macOS 26 or later.
 
-`make install` builds and opens `/Applications/Launcher.app` and registers it as a login item. `make uninstall` removes it, `make dmg` writes a disk image to `.local/dist`, and `make check` runs the tests. Pasting, translating selections, tiling, and window search need Accessibility access.
+`make install` builds and opens `/Applications/Etui.app` and registers it as a login item. `make uninstall` removes it, `make dmg` writes a disk image to `.local/dist`, and `make check` runs the tests. Pasting, translating selections, tiling, and window search need Accessibility access.
 
 | Shortcut | Action |
 |---|---|
@@ -42,4 +42,4 @@ Only `key` is required; `base` and `model` default to DeepSeek. `extra` is merge
 
 Pinyin (拼音 on a Chinese system) is a Chinese input method built on [librime](https://github.com/rime/librime) and [rime-ice](https://github.com/iDvel/rime-ice). It learns from your selections and uses English punctuation. Run `make install-ime`, then add Pinyin under System Settings > Keyboard > Input Sources > + > Chinese, Simplified. Press Shift to switch between Chinese and English in every app; 中 or 英 flashes at the cursor. Control-Delete removes a learned word; `make uninstall-ime` removes Pinyin.
 
-Data lives in `~/Library/Application Support/Launcher`: `aliases.json`, `usage.json`, `hidden.json`, `translate.json`, `clipboard/`, and `rime/`, where the input method keeps learned words.
+Data lives in `~/Library/Application Support/Etui`: `aliases.json`, `usage.json`, `hidden.json`, `translate.json`, `clipboard/`, and `rime/`, where the input method keeps learned words.

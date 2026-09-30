@@ -27,7 +27,7 @@ enum Tile {
     static func snap(_ edge: Edge) {
         guard granted() else { return }
         guard let window = frontWindow(), let current = frame(window), let display = screen(covering: current) else {
-            fputs("Launcher: no tileable frontmost window\n", stderr)
+            fputs("Etui: no tileable frontmost window\n", stderr)
             return
         }
         apply(window, next(edge, current: current, screen: display.visibleFrame))
@@ -53,7 +53,7 @@ enum Tile {
         guard let window = frontWindow(), let current = frame(window), let source = screen(covering: current),
               let frame = neighbor(edge, of: source.frame, among: screens.map(\.frame)),
               let target = screens.first(where: { $0.frame == frame }) else {
-            fputs("Launcher: no frontmost window with a neighboring screen\n", stderr)
+            fputs("Etui: no frontmost window with a neighboring screen\n", stderr)
             return
         }
         apply(window, relocated(current, from: source.visibleFrame, to: target.visibleFrame))

@@ -157,7 +157,7 @@ final class Screenshot {
                 cancel()
                 let alert = NSAlert()
                 alert.messageText = "Screen capture unavailable"
-                alert.informativeText = "Allow Launcher in System Settings → Privacy & Security → Screen & System Audio Recording, then try again.\n\n\(error.localizedDescription)"
+                alert.informativeText = "Allow Etui in System Settings → Privacy & Security → Screen & System Audio Recording, then try again.\n\n\(error.localizedDescription)"
                 alert.runModal()
             }
         }
@@ -284,7 +284,7 @@ final class Screenshot {
                 let current = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
                 guard !Task.isCancelled else { return }
                 let excluded = current.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
-                guard !excluded.isEmpty else { return fail("Could not exclude Launcher's capture interface.") }
+                guard !excluded.isEmpty else { return fail("Could not exclude Etui's capture interface.") }
                 overlays.forEach { $0.orderOut(nil) }
                 overlays.removeAll()
                 controls?.orderOut(nil)

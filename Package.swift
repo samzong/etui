@@ -2,17 +2,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "Launcher",
+    name: "Etui",
     platforms: [.macOS("26.0")],
     targets: [
         .executableTarget(
-            name: "Launcher",
+            name: "Etui",
             linkerSettings: [
                 .unsafeFlags(["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker", "Info.plist"]),
             ]
         ),
         .systemLibrary(name: "CRime"),
         .executableTarget(name: "Pinyin", dependencies: ["CRime"]),
-        .testTarget(name: "LauncherTests", dependencies: ["Launcher"]),
+        .testTarget(name: "EtuiTests", dependencies: ["Etui"]),
     ]
 )

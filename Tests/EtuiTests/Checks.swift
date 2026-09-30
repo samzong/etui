@@ -2,11 +2,11 @@ import AppKit
 import Foundation
 import Testing
 
-@testable import Launcher
+@testable import Etui
 
 private func makeRoot() throws -> URL {
     let root = FileManager.default.temporaryDirectory
-        .appendingPathComponent("launcher-checks-\(UUID().uuidString)")
+        .appendingPathComponent("etui-checks-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     return root
 }
@@ -57,14 +57,14 @@ private func app(_ id: String, _ name: String) -> Entry {
             }
             try writeBundle(root, path, values)
         }
-        #expect(Catalog.scan(roots: [root.path], panes: nil, extras: []).map(\.name) == ["Ghost", "Nested", "Shout", "Visible", "Quit Launcher"])
+        #expect(Catalog.scan(roots: [root.path], panes: nil, extras: []).map(\.name) == ["Ghost", "Nested", "Shout", "Visible", "Quit Etui"])
 
         try writeBundle(root, "Pane.appex", ["CFBundleIdentifier": "dev.test.pane", "CFBundleName": "Pane",
                                              "EXAppExtensionAttributes": ["EXExtensionPointIdentifier": "com.apple.Settings.extension.ui"]])
         try writeBundle(root, "Widget.appex", ["CFBundleIdentifier": "dev.test.widget", "CFBundleName": "Widget",
                                                "EXAppExtensionAttributes": ["EXExtensionPointIdentifier": "com.apple.widgetkit-extension"]])
         let panes = Catalog.scan(roots: [], panes: root.path, extras: [])
-        #expect(panes.map(\.name) == ["Pane", "Quit Launcher"])
+        #expect(panes.map(\.name) == ["Pane", "Quit Etui"])
         #expect(panes.first?.kind == .settings)
 
         try writeBundle(root, "Fresh.app", ["CFBundleName": "Fresh"])

@@ -21,7 +21,7 @@ private func register(_ bundle: Bundle) {
 }
 
 private func start(_ bundle: Bundle) {
-    let user = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support/Launcher/rime")
+    let user = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support/Etui/rime")
     try? FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)
     var traits = RimeTraits()
     traits.data_size = Int32(MemoryLayout<RimeTraits>.size - MemoryLayout<Int32>.size)

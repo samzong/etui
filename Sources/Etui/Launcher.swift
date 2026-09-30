@@ -57,7 +57,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
             do {
                 try SMAppService.mainApp.register()
             } catch {
-                fputs("Launcher: login item register failed: \(error)\n", stderr)
+                fputs("Etui: login item register failed: \(error)\n", stderr)
             }
         }
     }
@@ -79,7 +79,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
             return noErr
         }, 1, &event, Unmanaged.passUnretained(self).toOpaque(), &handler)
         guard status == noErr else {
-            fputs("Launcher: could not create hotkey manager\n", stderr)
+            fputs("Etui: could not create hotkey manager\n", stderr)
             return
         }
         for (index, shortcut) in Launcher.shortcuts.enumerated() {
@@ -90,7 +90,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
             if result == noErr, let hotkey {
                 hotkeys.append(hotkey)
             } else {
-                fputs("Launcher: \(shortcut.label) unavailable: OSStatus \(result)\n", stderr)
+                fputs("Etui: \(shortcut.label) unavailable: OSStatus \(result)\n", stderr)
             }
         }
     }

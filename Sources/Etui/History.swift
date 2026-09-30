@@ -2,7 +2,7 @@ import Foundation
 
 enum Store {
     static func dataDir() -> URL {
-        URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support/Launcher")
+        URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support/Etui")
     }
 
     static func now() -> Int64 {
@@ -27,7 +27,7 @@ enum Store {
             try data.write(to: dir.appendingPathComponent(name), options: .atomic)
             return true
         } catch {
-            fputs("Launcher: could not save \(name): \(error.localizedDescription)\n", stderr)
+            fputs("Etui: could not save \(name): \(error.localizedDescription)\n", stderr)
             return false
         }
     }

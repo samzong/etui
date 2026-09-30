@@ -15,7 +15,7 @@ struct Entry {
     var path: String
     var kind: Kind
 
-    static let quit = Entry(id: "internal.quit", name: "Quit Launcher", aliases: ["quit"], path: "", kind: .quit)
+    static let quit = Entry(id: "internal.quit", name: "Quit Etui", aliases: ["quit"], path: "", kind: .quit)
 }
 
 enum Catalog {
