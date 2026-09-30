@@ -2,7 +2,7 @@
 
 <img src="Resources/logo.svg" alt="Etui" width="64" height="64">
 
-A macOS launcher, clipboard history, window tiler, translator, and screenshot tool built with Swift and AppKit. Requires macOS 26 or later.
+A macOS launcher, clipboard history, window tiler, translator, and screenshot tool built with Swift and AppKit. Requires macOS 26 or later. The name is the French *étui*: a small case made to hold and keep those tools.
 
 `make install` builds and opens `/Applications/Etui.app` and registers it as a login item. `make uninstall` removes it, `make dmg` writes a disk image to `.local/dist`, and `make check` runs the tests. Pasting, translating selections, tiling, and window search need Accessibility access.
 
