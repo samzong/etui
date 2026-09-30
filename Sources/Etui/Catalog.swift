@@ -1,11 +1,12 @@
 import AppKit
 import Foundation
 
-enum Kind {
+enum Kind: Equatable {
     case app
     case target
     case settings
     case quit
+    case awake(Bool)
 }
 
 struct Entry {
@@ -16,6 +17,11 @@ struct Entry {
     var kind: Kind
 
     static let quit = Entry(id: "internal.quit", name: "Quit Etui", aliases: ["quit"], path: "", kind: .quit)
+
+    static func awake(_ on: Bool) -> Entry {
+        Entry(id: "internal.awake", name: on ? "Stop Keeping Awake" : "Keep Awake",
+              aliases: ["awake", "caffeinate", "sleep"], path: "", kind: .awake(on))
+    }
 }
 
 enum Catalog {

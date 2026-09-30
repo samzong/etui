@@ -18,6 +18,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
     private var monitor: Any?
     private var hotkeys: [EventHotKeyRef] = []
     private var handler: EventHandlerRef?
+    private var awake: NSObjectProtocol?
 
     private static let shortcuts: [(key: Int, modifiers: Int, label: String, run: @MainActor (Launcher) -> Void)] = [
         (kVK_Space, cmdKey, "Command+Space", { $0.toggle() }),
@@ -50,6 +51,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
         installMenu()
         registerShortcuts()
         clipboard.start()
+        awake = Launcher.keepAwake()
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) { [weak self] event in
             self?.handle(event) == false ? nil : event
         }
@@ -60,6 +62,11 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
                 fputs("Etui: login item register failed: \(error)\n", stderr)
             }
         }
+    }
+
+    private static func keepAwake() -> NSObjectProtocol {
+        ProcessInfo.processInfo.beginActivity(options: [.idleDisplaySleepDisabled, .idleSystemSleepDisabled],
+                                              reason: "Etui Keep Awake")
     }
 
     private func registerShortcuts() {
@@ -124,6 +131,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
     private func present() {
         let hidden = Store.hidden()
         catalog = Catalog.applyDisplayNames(Catalog.scan().filter { $0.kind == .quit || !hidden.contains($0.id as NSString) })
+            + [.awake(awake != nil)]
         content.clear()
         shown = true
         refresh()
@@ -208,6 +216,13 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
             let config = NSWorkspace.OpenConfiguration()
             config.activates = true
             NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: entry.path), configuration: config)
+        case .awake:
+            if let awake {
+                ProcessInfo.processInfo.endActivity(awake)
+                self.awake = nil
+            } else {
+                awake = Launcher.keepAwake()
+            }
         case .target:
             break
         }
