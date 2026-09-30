@@ -124,6 +124,6 @@ clean: ## Remove .build and .local/dist
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "; printf "\n$(BOLD)Etui$(RESET) — macOS launcher, clipboard, tiler, translator, and screenshots\n"} \
-		/^# ── / {n = $$0; gsub(/(^# ── | ─+$$)/, "", n); printf "\n$(BOLD)%s$(RESET)\n", n} \
+		/^# ── / {n = $$0; gsub(/(^# ── | (─)+$$)/, "", n); printf "\n$(BOLD)%s$(RESET)\n", n} \
 		/^[a-zA-Z_-]+:.*## / {printf "  $(CYAN)make %-14s$(RESET) %s\n", $$1, $$2} \
 		END {printf "\n"}' $(MAKEFILE_LIST)
