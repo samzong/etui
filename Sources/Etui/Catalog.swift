@@ -7,6 +7,7 @@ enum Kind: Equatable {
     case settings
     case quit
     case awake(Bool)
+    case closedLid(ClosedLidState)
 }
 
 struct Entry {
@@ -21,6 +22,18 @@ struct Entry {
     static func awake(_ on: Bool) -> Entry {
         Entry(id: "internal.awake", name: on ? "Stop Keeping Awake" : "Keep Awake",
               aliases: ["awake", "caffeinate", "sleep"], path: "", kind: .awake(on))
+    }
+
+    static func closedLid(_ state: ClosedLidState) -> Entry {
+        let name = switch state {
+        case .unknown: "Check Closed-Lid Sleep"
+        case .checking: "Checking Closed-Lid Sleep…"
+        case .disabled: "Keep Running with Lid Closed"
+        case .enabled: "Allow Sleep with Lid Closed"
+        case .changing: "Updating Closed-Lid Sleep…"
+        }
+        return Entry(id: "internal.closed-lid", name: name,
+                     aliases: ["lid", "clamshell", "closed", "sleep"], path: "", kind: .closedLid(state))
     }
 }
 
