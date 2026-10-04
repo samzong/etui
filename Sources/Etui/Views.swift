@@ -393,6 +393,8 @@ final class PanelContent: NSView {
             image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
         case .awake(let on):
             image = NSImage(systemSymbolName: on ? "cup.and.saucer.fill" : "cup.and.saucer", accessibilityDescription: nil)
+        case .closedLid:
+            image = NSImage(systemSymbolName: "laptopcomputer", accessibilityDescription: nil)
         case .app, .target, .settings:
             image = NSWorkspace.shared.icon(forFile: entry.path).copy() as? NSImage
             image?.size = NSSize(width: 32, height: 32)

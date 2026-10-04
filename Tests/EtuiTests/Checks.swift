@@ -26,7 +26,64 @@ private func app(_ id: String, _ name: String) -> Entry {
     Entry(id: id, name: name, aliases: [], path: "/Applications/\(name).app", kind: .app)
 }
 
+private actor SleepBackend {
+    enum Outcome { case apply, cancel, reject, ignore }
+    var enabled = false
+    var outcome: Outcome = .apply
+
+    func configure(_ enabled: Bool, _ outcome: Outcome = .apply) {
+        self.enabled = enabled
+        self.outcome = outcome
+    }
+
+    func read() -> Bool { enabled }
+
+    func write(_ value: Bool) throws -> Bool {
+        switch outcome {
+        case .apply: enabled = value; return true
+        case .cancel: return false
+        case .reject: throw SleepSettings.Failure.command("Authorization failed")
+        case .ignore: return true
+        }
+    }
+}
+
 @Suite struct Checks {
+    @MainActor @Test func closedLidReadsSystemStateAndCancellation() async throws {
+        let backend = SleepBackend()
+        let lid = ClosedLid(read: { await backend.read() }, write: { try await backend.write($0) })
+        try await lid.refresh()
+        #expect(lid.state == .disabled)
+        try await lid.set(true)
+        #expect(lid.state == .enabled)
+        await backend.configure(false)
+        try await lid.refresh()
+        #expect(lid.state == .disabled)
+        await backend.configure(false, .cancel)
+        try await lid.set(true)
+        #expect(lid.state == .disabled)
+        await backend.configure(true, .cancel)
+        try await lid.set(false)
+        #expect(lid.state == .enabled)
+    }
+
+    @MainActor @Test func closedLidRejectsUnappliedChanges() async {
+        let backend = SleepBackend()
+        let lid = ClosedLid(read: { await backend.read() }, write: { try await backend.write($0) })
+        for outcome in [SleepBackend.Outcome.reject, .ignore] {
+            await backend.configure(false, outcome)
+            await #expect(throws: SleepSettings.Failure.self) { try await lid.set(true) }
+            #expect(lid.state == .disabled)
+        }
+        let unreadable = ClosedLid(read: { throw SleepSettings.Failure.unreadable }, write: { _ in true })
+        await #expect(throws: SleepSettings.Failure.self) { try await unreadable.set(true) }
+        #expect(unreadable.state == .unknown)
+    }
+
+    @Test func systemSleepSettingCanBeRead() async throws {
+        _ = try await SleepSettings.read()
+    }
+
     @Test func searchableWindows() {
         let element = AXUIElementCreateApplication(getpid())
         func window(_ pid: pid_t, _ id: CGWindowID, _ title: String, tabs: [String] = []) -> OpenWindow {

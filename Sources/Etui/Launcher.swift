@@ -19,6 +19,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
     private var hotkeys: [EventHotKeyRef] = []
     private var handler: EventHandlerRef?
     private var awake: NSObjectProtocol?
+    private let closedLid = ClosedLid()
 
     private static let shortcuts: [(key: Int, modifiers: Int, label: String, run: @MainActor (Launcher) -> Void)] = [
         (kVK_Space, cmdKey, "Command+Space", { $0.toggle() }),
@@ -45,6 +46,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
                    styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         delegate = self
         content.mount(on: self, delegate: self)
+        closedLid.onChange = { [weak self] in self?.updateClosedLid() }
     }
 
     func applicationDidFinishLaunching(_: Notification) {
@@ -131,7 +133,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
     private func present() {
         let hidden = Store.hidden()
         catalog = Catalog.applyDisplayNames(Catalog.scan().filter { $0.kind == .quit || !hidden.contains($0.id as NSString) })
-            + [.awake(awake != nil)]
+            + [.awake(awake != nil), .closedLid(closedLid.state)]
         content.clear()
         shown = true
         refresh()
@@ -141,6 +143,42 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
         makeKeyAndOrderFront(nil)
         content.focus(on: self, end: false)
         reloadTargets()
+        Task { try? await closedLid.refresh() }
+    }
+
+    private func updateClosedLid() {
+        guard shown, let index = catalog.firstIndex(where: { $0.id == "internal.closed-lid" }) else { return }
+        catalog[index] = .closedLid(closedLid.state)
+        refresh(keeping: results.indices.contains(selected) ? results[selected].id : nil)
+    }
+
+    private func toggleClosedLid() {
+        guard !closedLid.state.busy else { return }
+        let enable = closedLid.state == .disabled
+        if enable {
+            let alert = NSAlert()
+            alert.messageText = "Keep Running with Lid Closed?"
+            alert.informativeText = "This disables system sleep on battery and power, including manual Sleep, and can block software sleep for low battery or overheating. It stays enabled after quitting Etui or restarting. Turn it off before putting your Mac in a bag."
+            alert.addButton(withTitle: "Enable")
+            alert.addButton(withTitle: "Cancel")
+            NSApp.activate(ignoringOtherApps: true)
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        Task {
+            do {
+                if closedLid.state == .unknown {
+                    try await closedLid.refresh()
+                } else {
+                    try await closedLid.set(enable)
+                }
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "Could Not Change Closed-Lid Sleep"
+                alert.informativeText = error.localizedDescription
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
+        }
     }
 
     private func reloadTargets() {
@@ -190,6 +228,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
         }
         guard results.indices.contains(selected) else { return }
         let entry = results[selected]
+        if case .closedLid(let state) = entry.kind, state.busy { return }
         if entry.kind == .target {
             Task {
                 guard await switcher.focus(entry.id) else {
@@ -223,6 +262,8 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
             } else {
                 awake = Launcher.keepAwake()
             }
+        case .closedLid:
+            toggleClosedLid()
         case .target:
             break
         }

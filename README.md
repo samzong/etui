@@ -17,6 +17,10 @@ A macOS launcher, clipboard history, window tiler, translator, and screenshot to
 
 The launcher lists apps, Finder, and System Settings panes. Search matches exact, prefix, and word-prefix, then ranks by usage; launching learns the typed query as an alias. List bundle identifiers in `hidden.json` to hide entries.
 
+Search `awake` to toggle Keep Awake, which starts enabled and prevents idle display and system sleep while Etui runs. Search `lid` for the separate Keep Running with Lid Closed setting. It requires administrator authorization and changes the system-wide `pmset disablesleep` setting on battery and power, including manual Sleep, and can block software sleep for low battery or overheating. The launcher reads the actual kernel state each time it opens and verifies each change. This setting stays enabled after quitting Etui or restarting; search `lid` and select Allow Sleep with Lid Closed to turn it off before putting your Mac in a bag. Cancelling authorization leaves the setting unchanged. No background service is installed.
+
+To turn it off without Etui, including after uninstalling, run `sudo pmset -a disablesleep 0` in Terminal. This restores system sleep; idle display and system sleep may still be prevented by Keep Awake or other apps.
+
 When a running app has multiple windows, on every Space, they are searchable by title and listed below the app's row; selecting one switches to that window. Open Google Chrome tabs are searchable by title and site and listed below Chrome's row in place of its windows; selecting one switches to that tab, and macOS asks once for permission to control Chrome. Combe tabs are listed the same way in place of its windows. Window discovery uses private macOS APIs and may need updates after macOS changes.
 
 The clipboard panel keeps text and images for 48 hours, skips concealed clips, and pastes with Return or ⌘1–⌘9.
