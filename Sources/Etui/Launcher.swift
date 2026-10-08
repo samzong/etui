@@ -188,10 +188,10 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
         }
     }
 
-    private func dismiss() {
+    private func dismiss(hiding: Bool = true) {
         guard shown else { return }
         shown = false
-        dismissAndHide()
+        hiding ? dismissAndHide() : orderOut(nil)
     }
 
     private func refresh(keeping id: String? = nil) {
@@ -236,14 +236,14 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
                     reloadTargets()
                     return
                 }
-                dismiss()
+                dismiss(hiding: false)
             }
             return
         }
         if entry.kind != .quit {
             history.record(content.query, id: entry.id)
         }
-        dismiss()
+        dismiss(hiding: entry.kind != .app)
         switch entry.kind {
         case .quit:
             NSApp.terminate(nil)
@@ -252,6 +252,7 @@ final class Launcher: NSPanel, NSApplicationDelegate, NSWindowDelegate, NSTextFi
                 NSWorkspace.shared.open(url)
             }
         case .app:
+            if switcher.reveal(app: entry.id) { break }
             let config = NSWorkspace.OpenConfiguration()
             config.activates = true
             NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: entry.path), configuration: config)
