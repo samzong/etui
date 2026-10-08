@@ -31,6 +31,12 @@ private let createElement = symbol("_AXUIElementCreateWithRemoteToken", in: acce
 private let getWindow = symbol("_AXUIElementGetWindow", in: accessibility, as: GetWindow.self)
 private let mainConnection = symbol("SLSMainConnectionID", in: skyLight, as: MainConnection.self)
 private let copySpaces = symbol("SLSCopySpacesForWindows", in: skyLight, as: CopySpaces.self)
+private typealias ProcessForPID = @convention(c) (pid_t, UnsafeMutablePointer<ProcessSerialNumber>) -> OSStatus
+private typealias SetFrontProcess = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, CGWindowID, UInt32) -> CGError
+private typealias PostEventRecord = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<UInt8>) -> CGError
+private let processForPID = symbol("GetProcessForPID", in: accessibility, as: ProcessForPID.self)
+private let setFrontProcess = symbol("_SLPSSetFrontProcessWithOptions", in: skyLight, as: SetFrontProcess.self)
+private let postEventRecord = symbol("SLPSPostEventRecordTo", in: skyLight, as: PostEventRecord.self)
 
 @MainActor final class Switcher {
     private static let chromeID = "com.google.Chrome"
@@ -66,6 +72,35 @@ private let copySpaces = symbol("SLSCopySpacesForWindows", in: skyLight, as: Cop
         return await target.focus()
     }
 
+    func reveal(app bundleID: String) -> Bool {
+        guard AXIsProcessTrusted(),
+              let pid = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleID })?.processIdentifier,
+              let window = Self.windows(pid).first else { return false }
+        return Self.raise(window)
+    }
+
+    private nonisolated static func windows(_ pid: pid_t) -> [OpenWindow] {
+        scan(pid, ids: candidates([pid])[pid] ?? [], tabbed: false)
+    }
+
+    private static func raise(_ window: OpenWindow) -> Bool {
+        var psn = ProcessSerialNumber()
+        guard let processForPID, let setFrontProcess, let postEventRecord, processForPID(window.pid, &psn) == noErr,
+              setFrontProcess(&psn, window.id, 0x200) == .success else { return false }
+        for phase: UInt8 in [1, 2] {
+            var event = [UInt8](repeating: 0, count: 0xF8)
+            event[0x04] = 0xF8
+            event[0x08] = phase
+            event[0x3A] = 0x10
+            withUnsafeBytes(of: window.id) { event.replaceSubrange(0x3C..<0x40, with: $0) }
+            event.replaceSubrange(0x20..<0x30, with: repeatElement(0xFF, count: 0x10))
+            _ = postEventRecord(&psn, &event)
+        }
+        AXUIElementSetMessagingTimeout(window.element, 0.2)
+        AXUIElementPerformAction(window.element, kAXRaiseAction as CFString)
+        return true
+    }
+
     func reload(then changed: @escaping @MainActor () -> Void) {
         let apps = Dictionary(uniqueKeysWithValues: NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && $0 != .current }
@@ -92,7 +127,7 @@ private let copySpaces = symbol("SLSCopySpacesForWindows", in: skyLight, as: Cop
                 let entry = Entry(id: "tab:\(tab.window):\(tab.id)", name: tab.title.isEmpty ? tab.url : tab.title,
                                   aliases: URL(string: tab.url)?.host().map { [$0] } ?? [],
                                   path: chrome?.bundleURL?.path ?? "", kind: .target)
-                return Target(entry: entry, app: Self.chromeID) { await Self.focus(tab) }
+                return Target(entry: entry, app: Self.chromeID) { await Self.focus(tab, of: chrome) }
             }
             targets = windows.filter { tabs.isEmpty || $0.app != Self.chromeID } + tabs
             changed()
@@ -109,15 +144,22 @@ private let copySpaces = symbol("SLSCopySpacesForWindows", in: skyLight, as: Cop
         return data.flatMap { try? JSONDecoder().decode([ChromeTab].self, from: $0) } ?? []
     }
 
-    private nonisolated static func focus(_ tab: ChromeTab) async -> Bool {
+    private static func focus(_ tab: ChromeTab, of app: NSRunningApplication?) async -> Bool {
         let data = await osascript("""
             const c = Application("\(chromeID)");
             const w = c.windows.byId(\(json(tab.window)));
             const i = w.tabs.id().indexOf(\(json(tab.id)));
-            if (i >= 0) { w.activeTabIndex = i + 1; w.index = 1; c.activate(); }
-            i >= 0
+            const titles = [w.activeTab().title()];
+            if (i >= 0) { w.activeTabIndex = i + 1; w.index = 1; titles.push(w.activeTab().title()); }
+            JSON.stringify(i >= 0 ? titles : null)
             """)
-        return data.map { String(decoding: $0, as: UTF8.self).hasPrefix("true") } ?? false
+        guard let app, let titles = data.flatMap({ try? JSONDecoder().decode([String].self, from: $0) }) else { return false }
+        if AXIsProcessTrusted(),
+           let window = windows(app.processIdentifier).first(where: { window in titles.contains { !$0.isEmpty && window.title.hasPrefix($0) } }),
+           raise(window) {
+            return true
+        }
+        return app.activate()
     }
 
     private nonisolated static func json(_ value: String) -> String {
@@ -153,9 +195,7 @@ private let copySpaces = symbol("SLSCopySpacesForWindows", in: skyLight, as: Cop
         guard !app.isTerminated, windowID(window.element) == window.id else { return false }
         AXUIElementSetMessagingTimeout(window.element, 0.2)
         AXUIElementSetAttributeValue(window.element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
-        let raised = AXUIElementPerformAction(window.element, kAXRaiseAction as CFString) == .success
-        let main = AXUIElementSetAttributeValue(window.element, kAXMainAttribute as CFString, kCFBooleanTrue) == .success
-        return (raised || main) && app.activate()
+        return raise(window)
     }
 
     private nonisolated static func scan(_ pids: Set<pid_t>, tabbed: pid_t?) -> [OpenWindow] {
