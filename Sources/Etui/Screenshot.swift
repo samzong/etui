@@ -170,16 +170,21 @@ final class Screenshot {
         let windows = content.windows.filter {
             $0.windowLayer == 0 && $0.owningApplication?.processID != ProcessInfo.processInfo.processIdentifier
         }.sorted { (ordered.firstIndex(of: $0.windowID) ?? .max) < (ordered.firstIndex(of: $1.windowID) ?? .max) }
-        let toolbar = ShotPanel(size: NSSize(width: 224, height: 48))
+        let toolbar = ShotPanel(size: NSSize(width: 256, height: 48))
         toolbar.title = "Screenshot"
         toolbar.level = .popUpMenu
         toolbar.onCancel = { [weak self] in self?.cancel() }
         var mode = ShotMode.area
         let submit = Tap(symbol: "doc.on.doc", flat: true) { [weak toolbar] in toolbar?.onSubmit?() }
-        submit.frame = NSRect(x: 180, y: 8, width: 32, height: 32)
+        submit.frame = NSRect(x: 212, y: 8, width: 32, height: 32)
         submit.isEnabled = false
         submit.toolTip = "Copy · Return"
         submit.setAccessibilityLabel("Copy screenshot")
+        let markup = Tap(symbol: "pencil.tip", flat: true) { [weak toolbar] in toolbar?.onMarkup?() }
+        markup.frame = NSRect(x: 176, y: 8, width: 32, height: 32)
+        markup.isEnabled = false
+        markup.toolTip = "Markup · ⇧Return"
+        markup.setAccessibilityLabel("Markup screenshot")
         for (index, item) in ShotMode.allCases.enumerated() {
             let button = Tap(symbol: item.symbol, flat: true) { [weak self, weak toolbar] in
                 guard let self, let toolbar else { return }
@@ -195,7 +200,9 @@ final class Screenshot {
                 submit.toolTip = mode == .scroll ? "Start scrolling capture · Return" : "Copy · Return"
                 submit.setAccessibilityLabel(mode == .scroll ? "Start scrolling capture" : "Copy screenshot")
                 submit.isEnabled = false
+                markup.isEnabled = false
                 toolbar.onSubmit = nil
+                toolbar.onMarkup = nil
                 for panel in overlays {
                     guard let view = panel.contentView as? ShotSelection else { continue }
                     view.mode = mode
@@ -225,6 +232,7 @@ final class Screenshot {
         cancel.toolTip = "Cancel · Esc"
         cancel.setAccessibilityLabel("Cancel screenshot")
         toolbar.contentView?.addSubview(cancel)
+        toolbar.contentView?.addSubview(markup)
         toolbar.contentView?.addSubview(submit)
         controls = toolbar
         for screen in NSScreen.screens {
@@ -249,19 +257,23 @@ final class Screenshot {
                     (other.contentView as? ShotSelection)?.clear()
                 }
                 submit.isEnabled = rect.width >= 32 && rect.height >= (mode == .scroll ? 64 : 32)
+                markup.isEnabled = submit.isEnabled && mode != .scroll
                 let global = rect.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
                 let visible = screen.visibleFrame
                 let y = global.minY - toolbar.frame.height - 10
                 toolbar.setFrameOrigin(NSPoint(x: min(max(global.maxX - toolbar.frame.width, visible.minX), visible.maxX - toolbar.frame.width),
                                                y: min(max(y, visible.minY), visible.maxY - toolbar.frame.height)))
                 if view.isDragging { toolbar.orderFrontRegardless() } else { toolbar.makeKeyAndOrderFront(nil) }
-                toolbar.onSubmit = { [weak self, weak view] in
+                let run: (Bool) -> Void = { [weak self, weak view] annotate in
                     guard let self, view != nil, submit.isEnabled else { return }
                     capture(rect: rect, window: mode == .window ? windowIndex.map { windows[$0] } : nil,
-                            display: display, screen: screen, scrolling: mode == .scroll)
+                            display: display, screen: screen, scrolling: mode == .scroll, annotate: annotate && mode != .scroll)
                 }
+                toolbar.onSubmit = { run(false) }
+                toolbar.onMarkup = { run(true) }
             }
             panel.onSubmit = { [weak toolbar] in toolbar?.onSubmit?() }
+            panel.onMarkup = { [weak toolbar] in toolbar?.onMarkup?() }
             panel.contentView = view
             overlays.append(panel)
             panel.orderFrontRegardless()
@@ -276,9 +288,10 @@ final class Screenshot {
         toolbar.orderFrontRegardless()
     }
 
-    private func capture(rect: NSRect, window: SCWindow?, display: SCDisplay, screen: NSScreen, scrolling: Bool) {
+    private func capture(rect: NSRect, window: SCWindow?, display: SCDisplay, screen: NSScreen, scrolling: Bool, annotate: Bool) {
         overlays.forEach { $0.ignoresMouseEvents = true }
         controls?.onSubmit = nil
+        controls?.onMarkup = nil
         task = Task {
             do {
                 let current = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
@@ -317,10 +330,28 @@ final class Screenshot {
                 } else {
                     let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
                     guard !Task.isCancelled else { return }
-                    copy(image)
+                    if annotate {
+                        edit(image, scale: CGFloat(filter.pointPixelScale), screen: screen)
+                    } else {
+                        copy(image)
+                    }
                 }
             } catch { if !Task.isCancelled { fail(error.localizedDescription) } }
         }
+    }
+
+    private func edit(_ image: CGImage, scale: CGFloat, screen: NSScreen) {
+        let editor = MarkEditor(image: image, scale: scale, visible: screen.visibleFrame)
+        editor.panel.onCancel = { [weak self] in self?.cancel() }
+        editor.panel.onSubmit = { [weak self, weak canvas = editor.canvas] in
+            guard let self, let canvas else { return }
+            guard let result = canvas.exported else { return fail("Could not render the markup.") }
+            copy(result)
+        }
+        controls = editor.panel
+        NSApp.activate(ignoringOtherApps: true)
+        editor.panel.makeKeyAndOrderFront(nil)
+        editor.panel.makeFirstResponder(editor.canvas)
     }
 
     private func scroll(filter: SCContentFilter, config: SCStreamConfiguration, screen: NSScreen, rect: NSRect) {
@@ -446,10 +477,15 @@ final class Screenshot {
 }
 
 @MainActor
-private final class ShotPanel: NSPanel {
+final class ShotPanel: NSPanel {
     var onCancel: (() -> Void)?
     var onSubmit: (() -> Void)?
+    var onMarkup: (() -> Void)?
     var onKeyEquivalent: ((NSEvent) -> Bool)?
+
+    func submit(with event: NSEvent) {
+        (event.modifierFlags.contains(.shift) ? onMarkup ?? onSubmit : onSubmit)?()
+    }
     convenience init(size: NSSize) {
         self.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         configureFloatingPanel()
@@ -465,7 +501,7 @@ private final class ShotPanel: NSPanel {
     override func keyDown(with event: NSEvent) {
         switch keyAction(event) {
         case .dismiss: onCancel?()
-        case .submit: onSubmit?()
+        case .submit: submit(with: event)
         default: super.keyDown(with: event)
         }
     }
@@ -582,7 +618,7 @@ final class ShotSelection: NSView {
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { window?.cancelOperation(nil) }
-        if event.keyCode == 36 { (window as? ShotPanel)?.onSubmit?() }
+        if event.keyCode == 36 { (window as? ShotPanel)?.submit(with: event) }
     }
 
     override func resetCursorRects() {

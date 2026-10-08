@@ -541,4 +541,69 @@ struct ScreenshotChecks {
         #expect(view.area == NSRect(x: 200, y: 200, width: 300, height: 200))
         #expect(view.windowIndex == nil)
     }
+
+    @Test @MainActor func markupMapsPointsToPixelsAndExportsStrokes() throws {
+        let white = try #require(CGContext(data: nil, width: 200, height: 160, bitsPerComponent: 8, bytesPerRow: 0,
+                                           space: CGColorSpaceCreateDeviceRGB(),
+                                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        white.setFillColor(.white)
+        white.fill(CGRect(x: 0, y: 0, width: 200, height: 160))
+        let image = try #require(white.makeImage())
+        let canvas = MarkCanvas(image: image, unit: 0.5, lineWidth: 4)
+        canvas.mouseDown(with: try mouse(.leftMouseDown, 10, 20))
+        canvas.mouseDragged(with: try mouse(.leftMouseDragged, 60, 50))
+        canvas.mouseUp(with: try mouse(.leftMouseUp, 60, 50))
+        canvas.tool = .arrow
+        canvas.mouseDown(with: try mouse(.leftMouseDown, 70, 10))
+        canvas.mouseUp(with: try mouse(.leftMouseUp, 71, 10))
+        #expect(canvas.frame.size == NSSize(width: 100, height: 80))
+        #expect(canvas.marks == [.rect(NSRect(x: 20, y: 40, width: 100, height: 60))])
+        canvas.mouseDown(with: try mouse(.leftMouseDown, 70, 10))
+        canvas.mouseDragged(with: try mouse(.leftMouseDragged, 90, 10))
+        canvas.mouseUp(with: try mouse(.leftMouseUp, 90, 10))
+        #expect(canvas.marks.last == .arrow(NSPoint(x: 140, y: 20), NSPoint(x: 180, y: 20)))
+        canvas.undo(nil)
+        #expect(canvas.marks.count == 1)
+        canvas.redo(nil)
+        let exported = try #require(canvas.exported)
+        let bitmap = NSBitmapImageRep(cgImage: exported)
+        #expect(exported.width == 200 && exported.height == 160)
+        func red(_ x: Int, _ y: Int) throws -> Bool {
+            let color = try #require(bitmap.colorAt(x: x, y: 160 - y))
+            return color.redComponent > 0.8 && color.greenComponent < 0.5
+        }
+        #expect(try red(20, 70) && red(160, 20) && !red(70, 70))
+    }
+
+    @Test @MainActor func markupEditorFitsScreenAndRoutesKeys() throws {
+        let context = try #require(CGContext(data: nil, width: 4000, height: 3000, bitsPerComponent: 8, bytesPerRow: 0,
+                                             space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        let image = try #require(context.makeImage())
+        let visible = NSRect(x: 0, y: 0, width: 1440, height: 875)
+        let editor = MarkEditor(image: image, scale: 2, visible: visible)
+        #expect(visible.contains(editor.panel.frame))
+        #expect(editor.canvas.frame.height >= 766 && editor.canvas.frame.height <= 767)
+        #expect(abs(editor.canvas.frame.width / editor.canvas.frame.height - 4 / 3) < 0.01)
+        #expect(editor.canvas.lineWidth == 6)
+        var events: [String] = []
+        editor.panel.onSubmit = { events.append("submit") }
+        editor.panel.onCancel = { events.append("cancel") }
+        func press(_ code: UInt16, _ flags: NSEvent.ModifierFlags = []) throws -> NSEvent {
+            try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0,
+                                          context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: code))
+        }
+        editor.canvas.keyDown(with: try press(36))
+        editor.canvas.keyDown(with: try press(53))
+        editor.panel.keyDown(with: try press(36, .shift))
+        #expect(events == ["submit", "cancel", "submit"])
+        let overlay = ShotPanel(size: NSSize(width: 100, height: 100))
+        let selection = ShotSelection(frame: overlay.frame)
+        overlay.contentView = selection
+        overlay.onSubmit = { events.append("copy") }
+        overlay.onMarkup = { events.append("markup") }
+        selection.keyDown(with: try press(36, .shift))
+        selection.keyDown(with: try press(36))
+        #expect(events.suffix(2) == ["markup", "copy"])
+    }
 }
